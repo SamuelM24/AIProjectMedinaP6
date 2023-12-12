@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
-using Unity.VisualScripting;
 
 public class PathMarker
 {
@@ -31,15 +30,16 @@ public class PathMarker
         }
         else
         {
-            return location.Equals(((PathMarker)obj ).location);
+            return location.Equals(((PathMarker)obj).location);
         }
     }
 
     public override int GetHashCode()
     {
-        return 0;
+        return location.GetHashCode();
     }
 }
+
 public class FindPathAStar : MonoBehaviour
 {
     public Maze maze;
@@ -59,12 +59,13 @@ public class FindPathAStar : MonoBehaviour
     PathMarker lastPos;
     bool done = false;
 
+
     void RemoveAllMarkers()
     {
         GameObject[] markers = GameObject.FindGameObjectsWithTag("marker");
         foreach (GameObject m in markers)
             Destroy(m);
-;    }
+    }
 
     void BeginSearch()
     {
@@ -73,7 +74,7 @@ public class FindPathAStar : MonoBehaviour
 
         List<MapLocation> locations = new List<MapLocation>();
         for (int z = 1; z < maze.depth - 1; z++)
-            for ( int x =1; x < maze.width - 1; x++)
+            for (int x = 1; x < maze.width - 1; x++)
             {
                 if (maze.map[x, z] != 1)
                     locations.Add(new MapLocation(x, z));
@@ -83,11 +84,11 @@ public class FindPathAStar : MonoBehaviour
 
         Vector3 startLocation = new Vector3(locations[0].x * maze.scale, 0, locations[0].z * maze.scale);
         startNode = new PathMarker(new MapLocation(locations[0].x, locations[0].z), 0, 0, 0,
-                                            Instantiate(start, startLocation, Quaternion.identity), null);
+            Instantiate(start, startLocation, Quaternion.identity), null);
 
         Vector3 goalLocation = new Vector3(locations[1].x * maze.scale, 0, locations[1].z * maze.scale);
         goalNode = new PathMarker(new MapLocation(locations[1].x, locations[1].z), 0, 0, 0,
-                                            Instantiate(end, goalLocation, Quaternion.identity), null);
+            Instantiate(end, goalLocation, Quaternion.identity), null);
 
         open.Clear();
         closed.Clear();
@@ -98,6 +99,7 @@ public class FindPathAStar : MonoBehaviour
     void Search(PathMarker thisNode)
     {
         {
+            if (thisNode == null) return;
             if (thisNode.Equals(goalNode)) { done = true; return; } //goal has been found
 
             foreach (MapLocation dir in maze.directions)
@@ -123,41 +125,66 @@ public class FindPathAStar : MonoBehaviour
                     open.Add(new PathMarker(neighbour, G, H, F, pathBlock, thisNode));
             }
         }
+        open = open.OrderBy(p => p.F).ThenBy(n => n.H).ToList();
+        PathMarker pm = open[0];
+        closed.Add(pm);
 
-        bool UpdateMarker(MapLocation pos, float g, float  h, float f, PathMarker prt)
-        {
-            foreach (PathMarker p in open)
-            {
-                if (p.location.Equals(pos))
-                {
-                    p.G = g;
-                    p.H = h;
-                    p.F = f;
-                    p.parent = prt;
-                    return true;
-                }
-            }
-            return false;
-        }
+        open.RemoveAt(0);
+        pm.marker.GetComponent<Renderer>().material = closedMaterial;
 
-        bool IsClosed(MapLocation marker)
-        {
-            foreach (PathMarker p in closed)
-            {
-                if (p.location.Equals(marker)) return true;
-            }
-            return false;
-        }
+        lastPos = pm;
     }
-    // Start is called before the first frame update
+
+    bool UpdateMarker(MapLocation pos, float g, float h, float f, PathMarker prt)
+    {
+        foreach (PathMarker p in open)
+        {
+            if (p.location.Equals(pos))
+            {
+                p.G = g;
+                p.H = h;
+                p.F = f;
+                p.parent = prt;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool IsClosed(MapLocation marker)
+    {
+        foreach (PathMarker p in closed)
+        {
+            if (p.location.Equals(marker)) return true;
+        }
+        return false;
+    }
+
+    void GetPath()
+    {
+        RemoveAllMarkers();
+        PathMarker begin = lastPos;
+
+        while (!startNode.Equals(begin) && begin != null)
+        {
+            Instantiate(pathP, new Vector3(begin.location.x * maze.scale, 0, begin.location.z * maze.scale),
+                Quaternion.identity);
+            begin = begin.parent;
+        }
+
+        Instantiate(pathP, new Vector3(startNode.location.x * maze.scale, 0, startNode.location.z * maze.scale),
+            Quaternion.identity);
+    }
+
     void Start()
     {
-        
+
     }
 
-    // Update is called once per frame
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.P)) BeginSearch();
+        if (Input.GetKeyDown(KeyCode.C) && !done) Search(lastPos);
+        if (Input.GetKeyDown(KeyCode.M)) GetPath();
     }
 }
